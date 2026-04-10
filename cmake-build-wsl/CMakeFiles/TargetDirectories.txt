@@ -1,0 +1,3 @@
+/home/jacek/http-server/cmake-build-wsl/CMakeFiles/http_server.dir
+/home/jacek/http-server/cmake-build-wsl/CMakeFiles/edit_cache.dir
+/home/jacek/http-server/cmake-build-wsl/CMakeFiles/rebuild_cache.dir
