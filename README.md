@@ -4,10 +4,11 @@ This is a simple http server, written in C++ from scratch using raw sockets.
 ## Building
 To compile, run `g++ main.cpp -o server` in the terminal.
 Run the commands in the project folder directory.
+All the commands are for Linux/Unix terminal (WSL on Windows).
 
 ## Running
 Run `./server` in the terminal to start the server.
-
+Once the server is started, open a browser and go to `http://localhost:8080/index.html`
 ## Features
 The server provides HTML and CSS files. It has 404 Not Found error handling.
 

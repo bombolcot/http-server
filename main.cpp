@@ -7,10 +7,18 @@
 
 // parses the buffer with the file path and extracts it to filepath
 // to make it usable in fopen
-void parseFilePath (char* buffer, char* filepath) {
+// checks if the request is not malformed
+bool parseFilePath (char* buffer, char* filepath) {
     char path[256]{};
-    char* ptr_start = strchr(buffer, ' ') + 1; // read path start
+
+    char* ptr_start = strchr(buffer, ' '); // read path start
+    if (ptr_start == nullptr) return false;
+    ptr_start += 1;
+
     char* ptr_end = strchr(ptr_start, ' '); // read path end
+    if (ptr_end == nullptr) return false;
+
+    if (ptr_end - ptr_start >= 256) return false;
     strncpy(path, ptr_start, ptr_end - ptr_start); // put in the entire path into the variable "path"
     path[ptr_end - ptr_start] = '\0'; // null termination
     if (strcmp(path, "/") == 0) { // make sure there is a directory/path to read
@@ -18,6 +26,7 @@ void parseFilePath (char* buffer, char* filepath) {
     }
 
     snprintf(filepath, 256, "%s", path + 1);
+    return true;
 }
 
 // reads the file and writes it to a file buffer
@@ -50,6 +59,29 @@ void sendResponse(int client_fd, char* file_buffer, long file_size, char* filepa
     snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n",content_type, file_size);
     send(client_fd, header, strlen(header), 0);
     send(client_fd, file_buffer, file_size, 0);
+}
+
+// sends error messages, closing client_fd handled in the main loop
+void sendError(int client_fd, int status) {
+    char error_header[256]{};
+    const char* error_body = nullptr;
+    const char* status_line = nullptr;
+    if (status == 404) {
+        status_line = "404 Not Found";
+        error_body = "<h1>404 Not Found</h1>";
+    } else if (status == 400) {
+        status_line = "400 Bad Request";
+        error_body = "<h1>400 Bad Request</h1>";
+    } else if (status == 413) {
+        status_line = "413 Request Entity Too Large";
+        error_body = "<h1>413 Request Entity Too Large</h1>";
+    } else {
+        status_line = "500 Internal Server Error";
+        error_body = "<h1>500 Internal Server Error</h1>";
+    }
+    snprintf(error_header, sizeof(error_header), "HTTP/1.1 %s\r\nContent-Length: %zu\r\n\r\n", status_line, strlen(error_body));
+    send(client_fd, error_header, strlen(error_header), 0);
+    send(client_fd, error_body, strlen(error_body), 0);
 }
 
 int main() {
@@ -94,20 +126,30 @@ int main() {
 
         // read the file path, and write it to a variable for opening
         char buffer[1024]{}; // this contains raw http data
-        recv(client_fd, buffer, sizeof(buffer), 0);
-        char filepath[256]{}; // this contains the path for opening a requested file
+        int bytes_recieved = recv(client_fd, buffer, sizeof(buffer), 0);
+        if (bytes_recieved == 0 || bytes_recieved == -1) {
+            close(client_fd);
+            continue;
+        }
+        // check if recv didn't return more than buffer size
+        if (bytes_recieved == sizeof(buffer)) {
+            sendError(client_fd, 413);
+            close(client_fd);
+            continue;
+        }
 
-        parseFilePath(buffer, filepath);
+        char filepath[256]{}; // this contains the path for opening a requested file
+        if (!parseFilePath(buffer, filepath)) {
+            sendError(client_fd, 400);
+            close(client_fd);
+            continue;
+        }
 
         char file_buffer[4096]{}; // this is a variable to which the content of a file is written to
-        char error_header[256]{};
-        const char* error_body = "<h1>404 Not Found</h1>";
+        // make size dynamic for the file_buffer
         long file_size = readFileToBuffer(filepath, file_buffer, sizeof(file_buffer));
-
         if (file_size < 0) {
-            snprintf(error_header, sizeof(error_header), "HTTP/1.1 404 Not Found\r\nContent-Length: %zu\r\n\r\n", sizeof(error_body));
-            send(client_fd, error_header, strlen(error_header), 0);
-            send(client_fd, error_body, strlen(error_body), 0);
+            sendError(client_fd, 404);
             close(client_fd);
             continue;
         }
