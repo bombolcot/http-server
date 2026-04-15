@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <vector>
+#include <thread>
 
 // parses the buffer with the file path and extracts it to filepath
 // to make it usable in fopen
@@ -31,23 +33,24 @@ bool parseFilePath (char* buffer, char* filepath) {
 
 // reads the file and writes it to a file buffer
 // returns the file size or -1 if the file can't be opened
-long readFileToBuffer(char* filepath, char* file_buffer, size_t buffer_size) {
+std::vector<char> readFileToBuffer(char* filepath) {
+    std::vector<char> file_buffer;
     FILE* fp = fopen(filepath, "rb");
     if (!fp) { // 404 response handled in the loop
-        return -1;
+        return file_buffer;
     }
     fseek(fp, 0, SEEK_END);
     long file_size = ftell(fp);
+    file_buffer.resize(file_size);
     fseek(fp, 0, SEEK_SET);
-    size_t ret = fread(file_buffer, 1, buffer_size, fp);
-    file_buffer[ret] = '\0';
+    fread(file_buffer.data(), sizeof(char), file_size, fp);
     fclose(fp);
-    return file_size;
+    return file_buffer;
 }
 
 // sends the response, checks the file type (css or html), sets content type accordingly
 // the response is sent at the end as well as the content itself
-void sendResponse(int client_fd, char* file_buffer, long file_size, char* filepath) {
+void sendResponse(int client_fd, std::vector<char>& file_buffer, char* filepath) {
     char header[256]{};
     const char* content_type;
     if (strstr(filepath, ".css")) {
@@ -56,9 +59,9 @@ void sendResponse(int client_fd, char* file_buffer, long file_size, char* filepa
         content_type = "text/html";
     }
     // printf(header);
-    snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n",content_type, file_size);
+    snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n\r\n",content_type, file_buffer.size());
     send(client_fd, header, strlen(header), 0);
-    send(client_fd, file_buffer, file_size, 0);
+    send(client_fd, file_buffer.data(), file_buffer.size(), 0);
 }
 
 // sends error messages, closing client_fd handled in the main loop
@@ -82,6 +85,41 @@ void sendError(int client_fd, int status) {
     snprintf(error_header, sizeof(error_header), "HTTP/1.1 %s\r\nContent-Length: %zu\r\n\r\n", status_line, strlen(error_body));
     send(client_fd, error_header, strlen(error_header), 0);
     send(client_fd, error_body, strlen(error_body), 0);
+}
+
+
+void handleClient(int client_fd) {
+    // read the file path, and write it to a variable for opening
+    char buffer[1024]{}; // this contains raw http data
+    int bytes_recieved = recv(client_fd, buffer, sizeof(buffer), 0);
+    if (bytes_recieved == 0 || bytes_recieved == -1) {
+        close(client_fd);
+        return;
+    }
+    // check if recv didn't return more than buffer size
+    if (bytes_recieved == sizeof(buffer)) {
+        sendError(client_fd, 413);
+        close(client_fd);
+        return;
+    }
+
+    char filepath[256]{}; // this contains the path for opening a requested file
+    if (!parseFilePath(buffer, filepath)) {
+        sendError(client_fd, 400);
+        close(client_fd);
+        return;
+    }
+
+    std::vector<char> file_buffer = readFileToBuffer(filepath);
+    if (file_buffer.empty()) {
+        sendError(client_fd, 404);
+        close(client_fd);
+        return;
+    }
+
+    sendResponse(client_fd, file_buffer, filepath);
+
+    close(client_fd);
 }
 
 int main() {
@@ -123,40 +161,7 @@ int main() {
             perror("accept failed");
             return 1;
         }
-
-        // read the file path, and write it to a variable for opening
-        char buffer[1024]{}; // this contains raw http data
-        int bytes_recieved = recv(client_fd, buffer, sizeof(buffer), 0);
-        if (bytes_recieved == 0 || bytes_recieved == -1) {
-            close(client_fd);
-            continue;
-        }
-        // check if recv didn't return more than buffer size
-        if (bytes_recieved == sizeof(buffer)) {
-            sendError(client_fd, 413);
-            close(client_fd);
-            continue;
-        }
-
-        char filepath[256]{}; // this contains the path for opening a requested file
-        if (!parseFilePath(buffer, filepath)) {
-            sendError(client_fd, 400);
-            close(client_fd);
-            continue;
-        }
-
-        char file_buffer[4096]{}; // this is a variable to which the content of a file is written to
-        // make size dynamic for the file_buffer
-        long file_size = readFileToBuffer(filepath, file_buffer, sizeof(file_buffer));
-        if (file_size < 0) {
-            sendError(client_fd, 404);
-            close(client_fd);
-            continue;
-        }
-
-        sendResponse(client_fd, file_buffer, file_size, filepath);
-
-        close(client_fd);
+        std::thread(handleClient, client_fd).detach();
     }
     close(sockfd);
     return 0;

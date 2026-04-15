@@ -16,8 +16,5 @@ Once the server is started, open a browser and go to `http://localhost:8080/inde
 - 400 handling for malformed requests
 - 413 handling for requests that are too large
 - Graceful handling of disconnected clients
-
-## Planned improvements
-
- - Make `file_buffer` size dynamic, refuse to send a response if the requested file size is too big.
- - Add threading
+- Dynamic file buffer sizing
+- Multi-threaded connection handling
