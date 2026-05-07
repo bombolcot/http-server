@@ -18,3 +18,4 @@ Once the server is started, open a browser and go to `http://localhost:8080/inde
 - Graceful handling of disconnected clients
 - Dynamic file buffer sizing
 - Multi-threaded connection handling
+- Logs each requested path, response code, and timestamp

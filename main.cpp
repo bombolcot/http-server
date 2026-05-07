@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <vector>
 #include <thread>
+#include <ctime>
 
 // parses the buffer with the file path and extracts it to filepath
 // to make it usable in fopen
@@ -87,6 +88,15 @@ void sendError(int client_fd, int status) {
     send(client_fd, error_body, strlen(error_body), 0);
 }
 
+// logs a response in the terminal. shows the requested path, response code and a timestamp
+void logRequest(const char* filepath, int status_code) {
+    time_t t = time(nullptr);
+    struct tm timeinfo{};
+    localtime_r(&t, &timeinfo);
+    char timestr[256]{};
+    strftime(timestr, sizeof(timestr), "%Y-%m-%d %T", &timeinfo);
+    printf("[%s] %d %s\n", timestr, status_code, filepath);
+}
 
 void handleClient(int client_fd) {
     // read the file path, and write it to a variable for opening
@@ -99,6 +109,7 @@ void handleClient(int client_fd) {
     // check if recv didn't return more than buffer size
     if (bytes_recieved == sizeof(buffer)) {
         sendError(client_fd, 413);
+        logRequest("unknown", 413);
         close(client_fd);
         return;
     }
@@ -106,6 +117,7 @@ void handleClient(int client_fd) {
     char filepath[256]{}; // this contains the path for opening a requested file
     if (!parseFilePath(buffer, filepath)) {
         sendError(client_fd, 400);
+        logRequest("malformed request", 400);
         close(client_fd);
         return;
     }
@@ -113,11 +125,13 @@ void handleClient(int client_fd) {
     std::vector<char> file_buffer = readFileToBuffer(filepath);
     if (file_buffer.empty()) {
         sendError(client_fd, 404);
+        logRequest(filepath, 404);
         close(client_fd);
         return;
     }
 
     sendResponse(client_fd, file_buffer, filepath);
+    logRequest(filepath, 200);
 
     close(client_fd);
 }
