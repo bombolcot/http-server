@@ -35,7 +35,6 @@
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cmake-build-wsl/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/cmake-build-wsl/Testing/Temporary/LastTest.log" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/main.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server" beforeDir="false" afterPath="$PROJECT_DIR$/server" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -127,7 +126,8 @@
       <workItem from="1776164958404" duration="5399000" />
       <workItem from="1776251107571" duration="5146000" />
       <workItem from="1776342771265" duration="1193000" />
-      <workItem from="1778161764606" duration="4609000" />
+      <workItem from="1778161764606" duration="4785000" />
+      <workItem from="1778673338333" duration="2841000" />
     </task>
     <servers />
   </component>

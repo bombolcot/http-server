@@ -7,6 +7,7 @@
 #include <vector>
 #include <thread>
 #include <ctime>
+#include <map>
 
 // parses the buffer with the file path and extracts it to filepath
 // to make it usable in fopen
@@ -52,15 +53,22 @@ std::vector<char> readFileToBuffer(char* filepath) {
 // sends the response, checks the file type (css or html), sets content type accordingly
 // the response is sent at the end as well as the content itself
 void sendResponse(int client_fd, std::vector<char>& file_buffer, char* filepath) {
+    static std::map<std::string, const char*> content_type_map{
+        {".css", "text/css"},
+        {".html", "text/html"},
+        {".js", "text/js"}
+    };
     char header[256]{};
-    const char* content_type;
-    if (strstr(filepath, ".css")) {
-        content_type = "text/css";
-    } else {
-        content_type = "text/html";
+    const char* ext = strrchr(filepath, '.');
+    const char* content_type = "application/octet-stream";
+    if (ext != nullptr) {
+        std::string extension(ext);
+        auto it = content_type_map.find(extension);
+        if (it != content_type_map.end()) {
+            content_type = it->second;
+        }
     }
-    // printf(header);
-    snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n\r\n",content_type, file_buffer.size());
+    snprintf(header, sizeof(header), "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\n\r\n", content_type, file_buffer.size());
     send(client_fd, header, strlen(header), 0);
     send(client_fd, file_buffer.data(), file_buffer.size(), 0);
 }
