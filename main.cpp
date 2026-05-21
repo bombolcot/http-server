@@ -8,7 +8,9 @@
 #include <thread>
 #include <ctime>
 #include <map>
+#include <string>
 
+const long MAX_FILE_SIZE = 10 * 1024 * 1024;
 // parses the buffer with the file path and extracts it to filepath
 // to make it usable in fopen
 // checks if the request is not malformed
@@ -35,14 +37,8 @@ bool parseFilePath (char* buffer, char* filepath) {
 
 // reads the file and writes it to a file buffer
 // returns the file size or -1 if the file can't be opened
-std::vector<char> readFileToBuffer(char* filepath) {
+std::vector<char> readFileToBuffer(FILE* fp, long file_size) {
     std::vector<char> file_buffer;
-    FILE* fp = fopen(filepath, "rb");
-    if (!fp) { // 404 response handled in the loop
-        return file_buffer;
-    }
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
     file_buffer.resize(file_size);
     fseek(fp, 0, SEEK_SET);
     fread(file_buffer.data(), sizeof(char), file_size, fp);
@@ -130,7 +126,23 @@ void handleClient(int client_fd) {
         return;
     }
 
-    std::vector<char> file_buffer = readFileToBuffer(filepath);
+    FILE* fp = fopen(filepath, "rb");
+    if (!fp) {
+        sendError(client_fd, 404);
+        logRequest(filepath, 404);
+        close(client_fd);
+        return;
+    }
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    if (file_size > MAX_FILE_SIZE) {
+        sendError(client_fd, 413);
+        logRequest(filepath, 413);
+        fclose(fp);
+        close(client_fd);
+        return;
+    }
+    std::vector<char> file_buffer = readFileToBuffer(fp, file_size);
     if (file_buffer.empty()) {
         sendError(client_fd, 404);
         logRequest(filepath, 404);
@@ -144,7 +156,12 @@ void handleClient(int client_fd) {
     close(client_fd);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    int port = 8080; // 8080 is the default port
+    if (argc > 1) {
+        std::string passedPort = argv[1];
+        port = std::stoi(passedPort);
+    }
     // create a socket
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -160,7 +177,7 @@ int main() {
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY; // listen on all interfaces
-    addr.sin_port = htons(8080); // port 8080, converted to network byte order
+    addr.sin_port = htons(port); // port converted to network byte order
 
     // binds socket to address
     if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {

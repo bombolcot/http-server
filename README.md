@@ -8,7 +8,9 @@ This project is written for Linux/Unix systems. Windows users can use WSL.
 
 ## Running
 Run `./server` in the terminal to start the server.
-Once the server is started, open a browser and go to `http://localhost:8080/index.html`
+You can optionally pass a custom port like `./server 9000`.
+Default port is 8080.
+Once the server is started, open a browser and go to `http://localhost:<port>/index.html`
 
 ## Features
 - 404 handling for files that don't exist
@@ -19,3 +21,5 @@ Once the server is started, open a browser and go to `http://localhost:8080/inde
 - Multi-threaded connection handling
 - Logs each requested path, response code, and timestamp
 - Supports multiple file types (HTML, CSS, JavaScript) with correct Content-Type headers
+- Customizable port
+- Maximum file size limit set to 10MB
